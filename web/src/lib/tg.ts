@@ -1,38 +1,46 @@
-import WebApp from "@twa-dev/sdk";
+interface TelegramWebApp {
+  initData?: string;
+  initDataUnsafe?: { user?: { id: number; first_name?: string; username?: string } };
+  ready?: () => void;
+  expand?: () => void;
+  colorScheme?: "light" | "dark";
+}
+
+declare global {
+  interface Window {
+    Telegram?: {
+      WebApp?: TelegramWebApp;
+    };
+  }
+}
+
+function webApp(): TelegramWebApp | undefined {
+  return typeof window !== "undefined" ? window.Telegram?.WebApp : undefined;
+}
 
 let initialised = false;
 
 export function initTelegram(): void {
   if (initialised) return;
+  const wa = webApp();
+  if (!wa) return;
   try {
-    WebApp.ready();
-    WebApp.expand();
+    wa.ready?.();
+    wa.expand?.();
     initialised = true;
   } catch {
-    // Running in browser dev mode — TG WebApp not present
+    // noop
   }
 }
 
 export function getInitData(): string {
-  try {
-    return WebApp.initData ?? "";
-  } catch {
-    return "";
-  }
+  return webApp()?.initData ?? "";
 }
 
 export function getTgUser(): { id: number; first_name?: string; username?: string } | null {
-  try {
-    return WebApp.initDataUnsafe?.user ?? null;
-  } catch {
-    return null;
-  }
+  return webApp()?.initDataUnsafe?.user ?? null;
 }
 
 export function isDarkScheme(): boolean {
-  try {
-    return WebApp.colorScheme === "dark";
-  } catch {
-    return false;
-  }
+  return webApp()?.colorScheme === "dark";
 }
