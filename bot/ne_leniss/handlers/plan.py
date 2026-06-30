@@ -2,23 +2,34 @@ import re
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from aiogram import Router
+from aiogram import F, Router
 from aiogram.filters import Command
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import Message
 
 from ne_leniss.repository import Repository
 
 router = Router()
 
-USAGE = (
-    "Использование: /plan <дата> <текст>\n\n"
-    "Дата: today/сегодня, tomorrow/завтра, +N (через N дней), "
-    "YYYY-MM-DD или DD.MM[.YYYY]\n\n"
+
+class PlanStates(StatesGroup):
+    awaiting_text = State()
+
+
+WIZARD_PROMPT = (
+    "📅 На какой день и что планируешь?\n\n"
+    "Формат: <code>дата текст</code>\n\n"
+    "Где дата:\n"
+    "• <code>05.07</code> — день и месяц\n"
+    "• <code>tomorrow</code> или <code>завтра</code>\n"
+    "• <code>+3</code> — через 3 дня\n"
+    "• <code>2026-07-15</code>\n\n"
     "Примеры:\n"
-    "/plan tomorrow зал в 19\n"
-    "/plan +3 встреча с врачом\n"
-    "/plan 2026-07-15 деньрожденье\n"
-    "/plan 5.07 поездка"
+    "<code>05.07 встреча с врачом 11:00</code>\n"
+    "<code>tomorrow зал в 19</code>\n"
+    "<code>+3 родители в гости</code>\n\n"
+    "Передумал — /cancel"
 )
 
 
@@ -52,28 +63,61 @@ def _parse_date(token: str, today: date) -> date | None:
     return None
 
 
-@router.message(Command("plan"))
-async def cmd_plan(message: Message, repo: Repository) -> None:
-    raw = (message.text or "").removeprefix("/plan").strip()
-    if not raw:
-        await message.answer(USAGE)
-        return
+async def _save_plan(user_id: int, message: Message, repo: Repository, raw: str) -> bool:
+    user = await repo.get_or_create_user(
+        tg_id=user_id,
+        username=message.from_user.username if message.from_user else None,
+        first_name=message.from_user.first_name if message.from_user else None,
+    )
     parts = raw.split(None, 1)
     if len(parts) < 2:
-        await message.answer(USAGE)
-        return
-    if message.from_user is None:
-        return
-    user = await repo.get_or_create_user(
-        tg_id=message.from_user.id,
-        username=message.from_user.username,
-        first_name=message.from_user.first_name,
-    )
-    today = datetime.now(ZoneInfo(user.timezone)).date()
+        await message.answer(
+            f"Не понял. Нужно: <code>дата текст</code>.\n\n{WIZARD_PROMPT}",
+            parse_mode="HTML",
+        )
+        return False
     date_token, plan_text = parts
+    today = datetime.now(ZoneInfo(user.timezone)).date()
     target = _parse_date(date_token, today)
     if target is None:
-        await message.answer(f"Не распознал дату «{date_token}».\n\n{USAGE}")
-        return
+        await message.answer(
+            f"Не распознал дату «{date_token}».\n\n{WIZARD_PROMPT}",
+            parse_mode="HTML",
+        )
+        return False
     await repo.append_plan(user.tg_id, target, plan_text)
-    await message.answer(f"✓ запланировал на {target.isoformat()}")
+    months = ["янв", "фев", "мар", "апр", "мая", "июн",
+              "июл", "авг", "сен", "окт", "ноя", "дек"]
+    pretty = f"{target.day} {months[target.month - 1]}"
+    await message.answer(f"✓ запланировал на {pretty}")
+    return True
+
+
+@router.message(Command("plan"))
+async def cmd_plan(message: Message, repo: Repository, state: FSMContext) -> None:
+    if message.from_user is None:
+        return
+    raw = (message.text or "").removeprefix("/plan").strip()
+    if raw:
+        await _save_plan(message.from_user.id, message, repo, raw)
+        return
+    await state.set_state(PlanStates.awaiting_text)
+    await message.answer(WIZARD_PROMPT, parse_mode="HTML")
+
+
+@router.message(PlanStates.awaiting_text, F.text == "/cancel")
+async def on_cancel(message: Message, state: FSMContext) -> None:
+    await state.clear()
+    await message.answer("Окей, отменил.")
+
+
+@router.message(PlanStates.awaiting_text)
+async def on_plan_text(message: Message, repo: Repository, state: FSMContext) -> None:
+    if message.from_user is None or not message.text:
+        return
+    if message.text.startswith("/"):
+        await message.answer("Похоже на команду. Если передумал — /cancel.")
+        return
+    ok = await _save_plan(message.from_user.id, message, repo, message.text)
+    if ok:
+        await state.clear()

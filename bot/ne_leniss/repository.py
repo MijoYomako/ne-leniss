@@ -1,11 +1,10 @@
-from datetime import date, datetime, timezone
+from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import and_, delete, select
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
-from ne_leniss.habits import HABIT_KEYS, HABIT_LABELS
 from ne_leniss.models import (
     DayEntry,
     HabitCheck,
@@ -56,6 +55,14 @@ class Repository:
     async def get_user(self, tg_id: int) -> User | None:
         async with self._sm() as s:
             return await s.get(User, tg_id)
+
+    async def set_user_habits(self, tg_id: int, habits_json: str) -> None:
+        async with self._sm() as s:
+            user = await s.get(User, tg_id)
+            if user is None:
+                return
+            user.habits_json = habits_json
+            await s.commit()
 
     # ---------- Day entries ----------
 
@@ -119,7 +126,12 @@ class Repository:
 
     # ---------- API queries ----------
 
-    async def get_day_summary(self, user_id: int, target: date) -> dict | None:
+    async def get_day_summary(
+        self,
+        user_id: int,
+        target: date,
+        habits: list[tuple[str, str]],
+    ) -> dict:
         async with self._sm() as s:
             entry = (
                 await s.execute(
@@ -128,7 +140,7 @@ class Repository:
                     )
                 )
             ).scalar_one_or_none()
-            checks = {}
+            checks: dict[str, bool] = {}
             if entry is not None:
                 rows = (
                     await s.execute(
@@ -156,15 +168,22 @@ class Repository:
                 "date": target.isoformat(),
                 "mood": entry.mood if entry else None,
                 "habits": [
-                    {"key": k, "label": HABIT_LABELS[k], "checked": checks.get(k, False)}
-                    for k in HABIT_KEYS
+                    {"key": k, "label": label, "checked": checks.get(k, False)}
+                    for k, label in habits
                 ],
                 "plans": [r[0] for r in plans],
                 "journal": [r[0] for r in journal],
             }
 
-    async def query_days_range(self, user_id: int, start: date, end: date) -> list[dict]:
+    async def query_days_range(
+        self,
+        user_id: int,
+        start: date,
+        end: date,
+        habits: list[tuple[str, str]],
+    ) -> list[dict]:
         start_iso, end_iso = start.isoformat(), end.isoformat()
+        habit_keys = [k for k, _ in habits]
         async with self._sm() as s:
             entries = (
                 await s.execute(
@@ -219,16 +238,17 @@ class Repository:
             }
             result = []
             for e in entries:
-                checks = checks_by_entry.get(e.id, {})
+                all_checks = checks_by_entry.get(e.id, {})
+                user_relevant = {k: all_checks.get(k, False) for k in habit_keys}
                 result.append(
                     {
                         "date": e.date,
-                        "checked_count": sum(1 for v in checks.values() if v),
-                        "total_habits": len(HABIT_KEYS),
+                        "checked_count": sum(1 for v in user_relevant.values() if v),
+                        "total_habits": len(habit_keys),
                         "mood": e.mood,
                         "has_plans": e.date in plan_dates,
                         "has_journal": e.date in journal_dates,
-                        "checks": {k: checks.get(k, False) for k in HABIT_KEYS},
+                        "checks": user_relevant,
                     }
                 )
             return result
@@ -245,6 +265,9 @@ class Repository:
                 except Exception:
                     continue
                 if local.hour != u.morning_hour or local.minute != u.morning_minute:
+                    continue
+                if not u.habits_json:
+                    # user hasn't completed onboarding — skip morning push
                     continue
                 date_iso = local.date().isoformat()
                 already = await s.get(MorningSent, (u.tg_id, date_iso))

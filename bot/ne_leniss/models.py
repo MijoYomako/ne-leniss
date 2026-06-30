@@ -27,6 +27,7 @@ class User(Base):
     timezone: Mapped[str] = mapped_column(String(64), nullable=False, default="Europe/Moscow")
     morning_hour: Mapped[int] = mapped_column(Integer, nullable=False, default=9)
     morning_minute: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    habits_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

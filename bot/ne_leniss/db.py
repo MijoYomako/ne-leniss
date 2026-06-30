@@ -24,3 +24,18 @@ def sessionmaker_from_engine(engine: AsyncEngine) -> async_sessionmaker:
 async def init_db(engine: AsyncEngine) -> None:
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+    await _migrate_sqlite_users(engine)
+
+
+async def _migrate_sqlite_users(engine: AsyncEngine) -> None:
+    """Idempotent column-add for SQLite. SQLAlchemy create_all doesn't ALTER."""
+    statements = [
+        "ALTER TABLE users ADD COLUMN habits_json TEXT",
+    ]
+    async with engine.begin() as conn:
+        for stmt in statements:
+            try:
+                await conn.exec_driver_sql(stmt)
+            except Exception:
+                # column already exists or other no-op error
+                pass

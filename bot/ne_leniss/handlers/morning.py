@@ -12,12 +12,7 @@ from aiogram.types import (
     Message,
 )
 
-from ne_leniss.habits import (
-    HABIT_KEYS,
-    HABIT_LABELS,
-    MOOD_KEY_TO_NAME,
-    MOOD_OPTIONS,
-)
+from ne_leniss.habits import MOOD_KEY_TO_NAME, MOOD_OPTIONS, user_habits_or_default
 from ne_leniss.models import User
 from ne_leniss.repository import Repository
 
@@ -30,15 +25,18 @@ class MorningStates(StatesGroup):
     awaiting_plans = State()
 
 
-def build_checkbox_keyboard(checkboxes: dict[str, bool]) -> InlineKeyboardMarkup:
+def build_checkbox_keyboard(
+    habits: list[tuple[str, str]],
+    checkboxes: dict[str, bool],
+) -> InlineKeyboardMarkup:
     rows: list[list[InlineKeyboardButton]] = []
-    for i in range(0, len(HABIT_KEYS), 2):
+    for i in range(0, len(habits), 2):
         row = []
-        for key in HABIT_KEYS[i : i + 2]:
+        for key, label in habits[i : i + 2]:
             icon = "☑" if checkboxes.get(key, False) else "☐"
             row.append(
                 InlineKeyboardButton(
-                    text=f"{icon} {HABIT_LABELS[key]}",
+                    text=f"{icon} {label}",
                     callback_data=f"chk:{key}",
                 )
             )
@@ -68,16 +66,17 @@ async def send_morning_message(
     await repo.find_or_create_day_entry(user.tg_id, today)
     await repo.find_or_create_day_entry(user.tg_id, yesterday)
 
-    initial = {key: False for key in HABIT_KEYS}
+    habits = user_habits_or_default(user.habits_json)
+    initial = {key: False for key, _ in habits}
     state_key = StorageKey(bot_id=bot.id, chat_id=user.tg_id, user_id=user.tg_id)
     state = FSMContext(storage=storage, key=state_key)
     await state.set_state(MorningStates.awaiting_checkboxes)
-    await state.update_data(checkboxes=initial)
+    await state.update_data(checkboxes=initial, habit_keys=[k for k, _ in habits])
 
     await bot.send_message(
         chat_id=user.tg_id,
-        text="Доброе утро. Чекни вчерашний день:",
-        reply_markup=build_checkbox_keyboard(initial),
+        text="Доброе утро 🌅\n\nЧекни вчерашний день:",
+        reply_markup=build_checkbox_keyboard(habits, initial),
     )
 
 
@@ -90,16 +89,18 @@ async def on_checkbox_callback(
     assert query.data is not None
     action = query.data.split(":", 1)[1]
     data = await state.get_data()
-    checkboxes: dict[str, bool] = data.get("checkboxes", {key: False for key in HABIT_KEYS})
+    checkboxes: dict[str, bool] = data.get("checkboxes", {})
+
+    if query.from_user is None:
+        await query.answer()
+        return
+    user = await repo.get_user(query.from_user.id)
+    if user is None:
+        await query.answer()
+        return
+    habits = user_habits_or_default(user.habits_json)
 
     if action == "done":
-        if query.from_user is None:
-            await query.answer()
-            return
-        user = await repo.get_user(query.from_user.id)
-        if user is None:
-            await query.answer()
-            return
         tz = ZoneInfo(user.timezone)
         yesterday = (datetime.now(tz) - timedelta(days=1)).date()
         entry_id = await repo.find_or_create_day_entry(user.tg_id, yesterday)
@@ -118,7 +119,7 @@ async def on_checkbox_callback(
         return
     checkboxes[action] = not checkboxes[action]
     await state.update_data(checkboxes=checkboxes)
-    await query.message.edit_reply_markup(reply_markup=build_checkbox_keyboard(checkboxes))
+    await query.message.edit_reply_markup(reply_markup=build_checkbox_keyboard(habits, checkboxes))
     await query.answer()
 
 
@@ -141,8 +142,9 @@ async def on_mood_callback(
     yesterday = (datetime.now(tz) - timedelta(days=1)).date()
     yesterday_id = await repo.find_or_create_day_entry(user.tg_id, yesterday)
     mood_name = MOOD_KEY_TO_NAME[key]
+    label = next(l for k, l in MOOD_OPTIONS if k == key)
     await repo.set_mood(yesterday_id, mood_name)
-    await query.message.edit_text(f"Вчера: {mood_name} ✓")
+    await query.message.edit_text(f"Вчера: {label} ✓")
 
     today = datetime.now(tz).date()
     await repo.find_or_create_day_entry(user.tg_id, today)
@@ -151,7 +153,7 @@ async def on_mood_callback(
         prompt = (
             "Уже запланировано на сегодня:\n\n"
             f"{existing}\n\n"
-            "Что добавить? Пиши текстом, или жми «Пропустить»."
+            "Что добавить? Пиши текстом — или жми «Пропустить»."
         )
         kb = InlineKeyboardMarkup(
             inline_keyboard=[[InlineKeyboardButton(text="⏭ Пропустить", callback_data="plans:skip")]]

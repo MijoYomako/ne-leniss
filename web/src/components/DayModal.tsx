@@ -3,27 +3,13 @@ import { format, parseISO } from "date-fns";
 import { ru } from "date-fns/locale";
 
 import { api } from "../lib/api";
+import { isDarkScheme } from "../lib/tg";
+import { moodVisual } from "../lib/mood";
 
 interface Props {
   date: string;
   onClose: () => void;
 }
-
-const MOOD_EMOJI: Record<string, string> = {
-  Good: "😊",
-  Productive: "⚡",
-  "Could be better": "🤔",
-  Bad: "😞",
-  Relaxing: "🌿",
-};
-
-const MOOD_LABEL_RU: Record<string, string> = {
-  Good: "Хороший",
-  Productive: "Продуктивный",
-  "Could be better": "Так себе",
-  Bad: "Плохой",
-  Relaxing: "Расслабленный",
-};
 
 export function DayModal({ date, onClose }: Props) {
   const { data, isLoading, error } = useQuery({
@@ -32,12 +18,14 @@ export function DayModal({ date, onClose }: Props) {
   });
 
   const dateObj = parseISO(date);
+  const dark = isDarkScheme();
   const isEmpty =
     data &&
     !data.mood &&
     data.plans.length === 0 &&
     data.journal.length === 0 &&
     !data.habits.some((h) => h.checked);
+  const mv = data ? moodVisual(data.mood) : null;
 
   return (
     <div
@@ -80,7 +68,7 @@ export function DayModal({ date, onClose }: Props) {
 
           {data && !isEmpty && (
             <>
-              {/* Habits chips */}
+              {/* Habits */}
               <section>
                 <h3 className="text-xs uppercase text-tg-hint mb-2 tracking-wider font-semibold">
                   Привычки
@@ -91,7 +79,7 @@ export function DayModal({ date, onClose }: Props) {
                       key={h.key}
                       className={`px-3 py-1.5 rounded-full text-sm flex items-center gap-1.5 transition ${
                         h.checked
-                          ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 ring-1 ring-emerald-500/30"
+                          ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 ring-1 ring-emerald-500/40"
                           : "bg-tg-secondary text-tg-hint"
                       }`}
                     >
@@ -102,38 +90,44 @@ export function DayModal({ date, onClose }: Props) {
                 </div>
               </section>
 
-              {/* Mood */}
-              {data.mood && (
+              {/* День был */}
+              {mv && (
                 <section>
                   <h3 className="text-xs uppercase text-tg-hint mb-2 tracking-wider font-semibold">
-                    Настроение
+                    День был
                   </h3>
-                  <div className="bg-tg-secondary rounded-xl p-3 flex items-center gap-3">
-                    <div className="text-3xl">{MOOD_EMOJI[data.mood] ?? "•"}</div>
-                    <div>
-                      <div className="font-medium">{MOOD_LABEL_RU[data.mood] ?? data.mood}</div>
-                      <div className="text-xs text-tg-hint">{data.mood}</div>
-                    </div>
+                  <div
+                    className="rounded-xl p-4 flex items-center gap-3 ring-1"
+                    style={{
+                      background: dark ? mv.bgDark : mv.bgLight,
+                      color: dark ? "#fff" : "#0f172a",
+                      borderColor: mv.accent,
+                    }}
+                  >
+                    <div className="text-4xl">{mv.emoji}</div>
+                    <div className="font-semibold text-lg">{mv.label}</div>
                   </div>
                 </section>
               )}
 
-              {/* Plans */}
+              {/* Plans (bulleted, line-by-line) */}
               {data.plans.length > 0 && (
                 <section>
                   <h3 className="text-xs uppercase text-tg-hint mb-2 tracking-wider font-semibold">
                     Планы
                   </h3>
-                  <div className="space-y-2">
-                    {data.plans.map((p, i) => (
-                      <div
-                        key={i}
-                        className="bg-tg-secondary rounded-xl p-3 whitespace-pre-wrap text-sm leading-relaxed"
-                      >
-                        {p}
-                      </div>
-                    ))}
-                  </div>
+                  <ul className="space-y-1.5">
+                    {data.plans
+                      .flatMap((p) => p.split("\n"))
+                      .map((l) => l.trim())
+                      .filter(Boolean)
+                      .map((line, i) => (
+                        <li key={i} className="flex gap-2 text-sm leading-relaxed">
+                          <span className="text-tg-hint mt-0.5">•</span>
+                          <span className="flex-1">{line}</span>
+                        </li>
+                      ))}
+                  </ul>
                 </section>
               )}
 

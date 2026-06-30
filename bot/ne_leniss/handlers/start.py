@@ -1,5 +1,6 @@
 from aiogram import Router
 from aiogram.filters import CommandStart
+from aiogram.fsm.context import FSMContext
 from aiogram.types import (
     InlineKeyboardButton,
     InlineKeyboardMarkup,
@@ -8,27 +9,17 @@ from aiogram.types import (
 )
 
 from ne_leniss.config import Settings
+from ne_leniss.handlers.onboarding import start_onboarding
 from ne_leniss.repository import Repository
 
 router = Router()
 
-WELCOME = (
-    "Привет 👋\n\n"
-    "Я помогу с трекингом привычек. Каждое утро в 09:00 МСК пришлю чек-лист "
-    "за вчера и спрошу планы на сегодня.\n\n"
-    "Команды:\n"
-    "/note <текст> — добавить заметку в журнал сегодня\n"
-    "/plan <дата> <текст> — запланировать на любой день\n"
-    "/app — открыть приложение с календарём и стриками\n\n"
-    "Открой приложение, чтобы видеть свой календарь:"
-)
-
 HELP = (
     "Команды:\n"
-    "/note <текст> — добавить заметку в журнал сегодня\n"
-    "/plan <дата> <текст> — запланировать на любой день\n"
-    "    дата: today, tomorrow, +N, YYYY-MM-DD или DD.MM\n"
-    "/app — открыть приложение с календарём и стриками"
+    "• /note — заметка в журнал\n"
+    "• /plan — запланировать на любой день\n"
+    "• /app — открыть приложение\n"
+    "• /reset_onboarding — пройти онбординг заново"
 )
 
 
@@ -41,15 +32,21 @@ def _open_app_keyboard(webapp_url: str) -> InlineKeyboardMarkup:
 
 
 @router.message(CommandStart())
-async def cmd_start(message: Message, repo: Repository, settings: Settings) -> None:
-    user = message.from_user
-    if user is None:
+async def cmd_start(
+    message: Message,
+    repo: Repository,
+    settings: Settings,
+    state: FSMContext,
+) -> None:
+    if message.from_user is None:
         return
-    existing = await repo.get_user(user.id)
-    await repo.get_or_create_user(
-        tg_id=user.id,
-        username=user.username,
-        first_name=user.first_name,
+    user = await repo.get_or_create_user(
+        tg_id=message.from_user.id,
+        username=message.from_user.username,
+        first_name=message.from_user.first_name,
     )
-    text = WELCOME if existing is None else HELP
-    await message.answer(text, reply_markup=_open_app_keyboard(settings.webapp_url))
+    if not user.habits_json:
+        # Not onboarded yet — start the welcome flow
+        await start_onboarding(message, state)
+        return
+    await message.answer(HELP, reply_markup=_open_app_keyboard(settings.webapp_url))
