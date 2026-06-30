@@ -10,8 +10,10 @@ from aiogram.types import (
     InlineKeyboardButton,
     InlineKeyboardMarkup,
     Message,
+    WebAppInfo,
 )
 
+from ne_leniss.config import Settings
 from ne_leniss.habits import MOOD_KEY_TO_NAME, MOOD_OPTIONS, user_habits_or_default
 from ne_leniss.models import User
 from ne_leniss.repository import Repository
@@ -59,6 +61,7 @@ async def send_morning_message(
     bot: Bot,
     repo: Repository,
     storage: BaseStorage,
+    is_first_run: bool = False,
 ) -> None:
     tz = ZoneInfo(user.timezone)
     today = datetime.now(tz).date()
@@ -71,11 +74,16 @@ async def send_morning_message(
     state_key = StorageKey(bot_id=bot.id, chat_id=user.tg_id, user_id=user.tg_id)
     state = FSMContext(storage=storage, key=state_key)
     await state.set_state(MorningStates.awaiting_checkboxes)
-    await state.update_data(checkboxes=initial, habit_keys=[k for k, _ in habits])
+    await state.update_data(
+        checkboxes=initial,
+        habit_keys=[k for k, _ in habits],
+        is_first_run=is_first_run,
+    )
 
+    header = "Поехали 🚀\n\nЧекни вчерашний день:" if is_first_run else "Доброе утро 🌅\n\nЧекни вчерашний день:"
     await bot.send_message(
         chat_id=user.tg_id,
-        text="Доброе утро 🌅\n\nЧекни вчерашний день:",
+        text=header,
         reply_markup=build_checkbox_keyboard(habits, initial),
     )
 
@@ -167,15 +175,48 @@ async def on_mood_callback(
     await query.answer()
 
 
+FIRST_RUN_CONGRATS = (
+    "🎉 С первым заполненным днём!\n\n"
+    "Открой приложение через меню снизу — увидишь как этот день появился в "
+    "календаре. Прошлые 7 дней я заполнил случайными данными, чтобы ты сразу "
+    "видел как это будет выглядеть через пару недель регулярного трекинга.\n\n"
+    "Завтра в 09:00 я приду снова 🐻"
+)
+
+
+async def _send_congrats_if_first(
+    message: Message, state_data: dict, settings: Settings
+) -> None:
+    if not state_data.get("is_first_run"):
+        return
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="🚀 Открыть приложение", web_app=WebAppInfo(url=settings.webapp_url))]
+        ]
+    )
+    await message.answer(FIRST_RUN_CONGRATS, reply_markup=kb)
+
+
 @router.callback_query(MorningStates.awaiting_plans, F.data == "plans:skip")
-async def on_plans_skip(query: CallbackQuery, state: FSMContext) -> None:
+async def on_plans_skip(
+    query: CallbackQuery,
+    state: FSMContext,
+    settings: Settings,
+) -> None:
+    data = await state.get_data()
     await query.message.edit_text("День начался ✓")
+    await _send_congrats_if_first(query.message, data, settings)
     await state.clear()
     await query.answer()
 
 
 @router.message(MorningStates.awaiting_plans)
-async def on_plans_text(message: Message, state: FSMContext, repo: Repository) -> None:
+async def on_plans_text(
+    message: Message,
+    state: FSMContext,
+    repo: Repository,
+    settings: Settings,
+) -> None:
     if message.from_user is None:
         return
     text = (message.text or "").strip()
@@ -186,7 +227,9 @@ async def on_plans_text(message: Message, state: FSMContext, repo: Repository) -
         return
     today = datetime.now(ZoneInfo(user.timezone)).date()
     await repo.append_plan(user.tg_id, today, text)
+    data = await state.get_data()
     await message.answer("Сохранил. День начался ✓")
+    await _send_congrats_if_first(message, data, settings)
     await state.clear()
 
 

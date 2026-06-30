@@ -35,7 +35,7 @@ async def cmd_seed(message: Message, repo: Repository) -> None:
         "погулял, расслабился", "встретился с другом",
     ]
 
-    days_count = 28
+    days_count = 7
     skip_recent = 2  # leave yesterday + day-before empty
     for days_back in range(skip_recent + 1, days_count + skip_recent + 1):
         d = today - timedelta(days=days_back)

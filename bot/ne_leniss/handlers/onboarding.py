@@ -120,10 +120,12 @@ async def on_habits_input(
         "погулял, расслабился", "встретился с другом",
     ]
     rng = random.Random(user.tg_id)
-    for days_back in range(3, 31):
+    # Fill days 3..9 ago (7 days), keep yesterday & day-before empty so the
+    # user doesn't start with a fake streak.
+    for days_back in range(3, 10):
         d = today - timedelta(days=days_back)
         entry_id = await repo.find_or_create_day_entry(user.tg_id, d)
-        base = 0.30 + 0.50 * (1 - days_back / 30)
+        base = 0.45 + 0.25 * (1 - days_back / 10)
         checks = {
             k: rng.random() < base + rng.uniform(-0.15, 0.15)
             for k, _ in habits
@@ -139,20 +141,19 @@ async def on_habits_input(
     habits_list = "\n".join(f"• {label}" for _, label in habits)
     await message.answer(
         AFTER_HABITS_HEADER
-        + "Я уже заполнил пару прошлых недель данными для примера — открой "
-        "приложение через меню снизу, чтобы посмотреть как это выглядит.\n\n"
-        f"Твои привычки:\n{habits_list}\n\n"
-        "Теперь давай попробуем сразу — заполним чекбоксы за вчерашний день "
-        "и запланируем сегодня 🚀"
+        + f"Твои привычки:\n{habits_list}\n\n"
+        "Теперь попробуем сразу — заполним чекбоксы за вчерашний день, "
+        "отметим какой он был и запланируем сегодня 🚀"
     )
     await state.clear()
 
-    # Hand off to morning flow
+    # Hand off to morning flow as the first run (no "доброе утро", and we'll
+    # congratulate after plans are saved)
     from ne_leniss.handlers.morning import send_morning_message
 
     fresh_user = await repo.get_user(user.tg_id)
     if fresh_user is not None:
-        await send_morning_message(fresh_user, bot, repo, state.storage)
+        await send_morning_message(fresh_user, bot, repo, state.storage, is_first_run=True)
 
 
 @router.message(F.text == "/reset_onboarding")
