@@ -28,11 +28,11 @@ export function Home() {
           Привет, {meQ.data?.first_name ?? "друг"} 👋
         </h1>
         <p className="text-tg-hint text-sm mt-1">
-          Календарь привычек за последние 90 дней
+          Твой календарь привычек
         </p>
       </header>
 
-      <section className="mb-8 overflow-x-auto -mx-4 px-4">
+      <section className="mb-8">
         {daysQ.isLoading && <p className="text-tg-hint">Загрузка календаря…</p>}
         {daysQ.error && <p className="text-red-500 text-sm">Не удалось загрузить календарь</p>}
         {daysQ.data && (

@@ -21,6 +21,7 @@ from ne_leniss.handlers import app as app_handler
 from ne_leniss.handlers import morning as morning_handler
 from ne_leniss.handlers import note as note_handler
 from ne_leniss.handlers import plan as plan_handler
+from ne_leniss.handlers import seed as seed_handler
 from ne_leniss.handlers import start as start_handler
 from ne_leniss.repository import Repository
 from ne_leniss.scheduler import build_scheduler
@@ -50,6 +51,7 @@ async def main() -> None:
     dp.include_router(note_handler.router)
     dp.include_router(plan_handler.router)
     dp.include_router(app_handler.router)
+    dp.include_router(seed_handler.router)
     dp.include_router(morning_handler.router)
 
     dp["repo"] = repo
@@ -67,7 +69,7 @@ async def main() -> None:
             host="0.0.0.0",
             port=settings.port,
             log_level="info",
-            access_log=True,
+            access_log=False,
         )
     )
     log.info("API listening on :%d", settings.port)
