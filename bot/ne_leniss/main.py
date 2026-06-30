@@ -67,7 +67,7 @@ async def main() -> None:
             host="0.0.0.0",
             port=settings.port,
             log_level="info",
-            access_log=False,
+            access_log=True,
         )
     )
     log.info("API listening on :%d", settings.port)

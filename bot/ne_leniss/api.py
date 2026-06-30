@@ -34,11 +34,20 @@ def build_fastapi(repo: Repository, settings: Settings) -> FastAPI:
             if uid and uid.isdigit():
                 return int(uid)
         header = request.headers.get("Authorization", "")
+        origin = request.headers.get("Origin", "-")
         if not header.startswith("tma "):
+            log.warning("auth: no tma header, origin=%s path=%s", origin, request.url.path)
             raise HTTPException(status_code=401, detail="missing tma authorization")
         init_data = header.removeprefix("tma ")
         uid = verify_init_data(init_data, settings.bot_token)
         if uid is None:
+            log.warning(
+                "auth: HMAC failed, origin=%s path=%s init_data_len=%d sample=%r",
+                origin,
+                request.url.path,
+                len(init_data),
+                init_data[:60],
+            )
             raise HTTPException(status_code=401, detail="invalid initData")
         return uid
 
