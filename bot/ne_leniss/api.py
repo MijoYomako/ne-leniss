@@ -1,6 +1,7 @@
 import logging
 from datetime import date, timedelta
 from typing import Annotated
+from urllib.parse import urlparse
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -17,7 +18,9 @@ log = logging.getLogger("ne_leniss.api")
 def build_fastapi(repo: Repository, settings: Settings) -> FastAPI:
     app = FastAPI(title="Ne Leniss API", version="0.1.0")
 
-    cors_origins = [settings.webapp_url, "http://localhost:5173"]
+    parsed = urlparse(settings.webapp_url)
+    webapp_origin = f"{parsed.scheme}://{parsed.netloc}" if parsed.netloc else settings.webapp_url
+    cors_origins = [webapp_origin, "http://localhost:5173"]
     app.add_middleware(
         CORSMiddleware,
         allow_origins=cors_origins,
