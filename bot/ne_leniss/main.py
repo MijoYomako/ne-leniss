@@ -6,9 +6,11 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+import uvicorn
 from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
 
+from ne_leniss.api import build_fastapi
 from ne_leniss.config import load_settings
 from ne_leniss.db import (
     create_async_engine_from_url,
@@ -58,8 +60,22 @@ async def main() -> None:
     scheduler.start()
     log.info("Scheduler started (per-minute morning scan)")
 
+    api = build_fastapi(repo, settings)
+    server = uvicorn.Server(
+        uvicorn.Config(
+            app=api,
+            host="0.0.0.0",
+            port=settings.port,
+            log_level="info",
+            access_log=False,
+        )
+    )
+    log.info("API listening on :%d", settings.port)
     log.info("Starting polling")
-    await dp.start_polling(bot)
+    await asyncio.gather(
+        dp.start_polling(bot),
+        server.serve(),
+    )
 
 
 if __name__ == "__main__":
