@@ -64,6 +64,28 @@ class Repository:
             user.habits_json = habits_json
             await s.commit()
 
+    async def wipe_user_data(self, tg_id: int) -> None:
+        """Delete all day-level data for a user (habit checks, mood, plans,
+        journal, morning_sent) but keep the User row. Used by
+        /reset_onboarding so the demo seed can be redone cleanly."""
+        async with self._sm() as s:
+            entry_ids = [
+                r[0]
+                for r in (
+                    await s.execute(select(DayEntry.id).where(DayEntry.user_id == tg_id))
+                ).all()
+            ]
+            if entry_ids:
+                await s.execute(delete(HabitCheck).where(HabitCheck.day_entry_id.in_(entry_ids)))
+                await s.execute(delete(DayEntry).where(DayEntry.user_id == tg_id))
+            await s.execute(delete(Plan).where(Plan.user_id == tg_id))
+            await s.execute(delete(JournalEntry).where(JournalEntry.user_id == tg_id))
+            await s.execute(delete(MorningSent).where(MorningSent.user_id == tg_id))
+            user = await s.get(User, tg_id)
+            if user is not None:
+                user.habits_json = None
+            await s.commit()
+
     # ---------- Day entries ----------
 
     async def find_or_create_day_entry(self, user_id: int, target: date) -> int:
@@ -162,6 +184,7 @@ class Repository:
 
             habits_display: list[tuple[str, str]] = []
             checks_map: dict[str, bool] = {}
+            current_label_by_key = {k: l for k, l in current_habits}
 
             if entry is not None:
                 rows = (
@@ -173,7 +196,12 @@ class Repository:
                 ).all()
                 if rows:
                     for key, label, checked in rows:
-                        habits_display.append((key, label or key))
+                        # Fallback for legacy rows where label was NULL:
+                        # prefer the label from the user's current habit list
+                        # (best chance of a nice name), otherwise fall back
+                        # to the raw key.
+                        display = label or current_label_by_key.get(key) or key
+                        habits_display.append((key, display))
                         checks_map[key] = bool(checked)
 
             if not habits_display:

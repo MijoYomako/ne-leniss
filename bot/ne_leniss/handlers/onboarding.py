@@ -169,14 +169,9 @@ async def cmd_reset_onboarding(
 ) -> None:
     if message.from_user is None:
         return
-    await repo.set_user_habits(message.from_user.id, "")  # treat empty as null
-    async with repo._sm() as s:  # quick null cleanup
-        from ne_leniss.models import User as _U
-        u = await s.get(_U, message.from_user.id)
-        if u:
-            u.habits_json = None
-            await s.commit()
+    await repo.wipe_user_data(message.from_user.id)
     await state.clear()
     await message.answer(
-        "🔄 Сбросил онбординг. Жми /start чтобы пройти заново."
+        "🔄 Полный сброс — данные привычек, планов и заметок удалены. "
+        "Жми /start чтобы пройти онбординг заново."
     )

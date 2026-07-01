@@ -1,5 +1,10 @@
 // Mood color palettes for calendar tile + modal accent.
-// Each entry: [light_bg, dark_bg, accent_border]
+// Palette choices:
+//   Good        → grass green (light, warm)
+//   Productive  → emerald / darker green (energetic, distinct from Good)
+//   Could be better → yellow / amber (clearly not red)
+//   Bad         → red
+//   Relaxing    → sky blue (soft, restful)
 
 export interface MoodVisual {
   bgLight: string;
@@ -12,22 +17,22 @@ export interface MoodVisual {
 export const MOOD: Record<string, MoodVisual> = {
   Good: {
     bgLight: "#bbf7d0",
-    bgDark: "#15803d",
+    bgDark: "#166534",
     accent: "#22c55e",
     emoji: "😊",
     label: "Хороший",
   },
   Productive: {
-    bgLight: "#fde68a",
-    bgDark: "#b45309",
-    accent: "#f59e0b",
+    bgLight: "#a7f3d0",
+    bgDark: "#047857",
+    accent: "#10b981",
     emoji: "⚡",
     label: "Продуктивный",
   },
   "Could be better": {
-    bgLight: "#fed7aa",
-    bgDark: "#9a3412",
-    accent: "#fb923c",
+    bgLight: "#fde68a",
+    bgDark: "#78350f",
+    accent: "#eab308",
     emoji: "🤔",
     label: "Так себе",
   },
@@ -39,9 +44,9 @@ export const MOOD: Record<string, MoodVisual> = {
     label: "Плохой",
   },
   Relaxing: {
-    bgLight: "#c7d2fe",
-    bgDark: "#3730a3",
-    accent: "#6366f1",
+    bgLight: "#bae6fd",
+    bgDark: "#075985",
+    accent: "#0ea5e9",
     emoji: "🌿",
     label: "Расслабленный",
   },
