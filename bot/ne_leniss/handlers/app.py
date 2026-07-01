@@ -30,7 +30,7 @@ async def pin_app_shortcut(message: Message, settings: Settings) -> None:
     """
     try:
         pin_msg = await message.answer(
-            "🚀 Быстрый доступ к твоему приложению",
+            "🚀 Быстрый доступ к твоему Календарю привычек",
             reply_markup=app_keyboard(settings.webapp_url),
         )
         await message.bot.pin_chat_message(

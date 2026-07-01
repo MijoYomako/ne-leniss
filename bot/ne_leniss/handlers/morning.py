@@ -177,9 +177,9 @@ async def on_mood_callback(
 
 FIRST_RUN_CONGRATS = (
     "🎉 С первым заполненным днём!\n\n"
-    "Открой приложение через меню снизу — увидишь как этот день появился в "
-    "календаре. Прошлые 7 дней я заполнил случайными данными, чтобы ты сразу "
-    "видел как это будет выглядеть через пару недель регулярного трекинга.\n\n"
+    "Прошлые 7 дней я заполнил случайными данными — открой Календарь "
+    "чуть ниже 👇 и посмотри, как это будет выглядеть у тебя через пару "
+    "недель регулярного трекинга.\n\n"
     "Завтра в 09:00 я приду снова 🐻"
 )
 
@@ -229,12 +229,7 @@ async def _send_congrats_if_first(
 ) -> None:
     if not state_data.get("is_first_run"):
         return
-    kb = InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text="🚀 Открыть приложение", web_app=WebAppInfo(url=settings.webapp_url))]
-        ]
-    )
-    await message.answer(FIRST_RUN_CONGRATS, reply_markup=kb)
+    await message.answer(FIRST_RUN_CONGRATS)
     # Pin a persistent app shortcut so the user always has one-tap access.
     from ne_leniss.handlers.app import pin_app_shortcut
 
