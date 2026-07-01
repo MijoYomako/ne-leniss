@@ -130,7 +130,7 @@ async def on_habits_input(
             k: rng.random() < base + rng.uniform(-0.15, 0.15)
             for k, _ in habits
         }
-        await repo.set_habit_checks(entry_id, checks)
+        await repo.set_habit_checks(entry_id, habits, checks)
         if rng.random() < 0.75:
             await repo.set_mood(entry_id, rng.choice(moods))
         if rng.random() < 0.35:
@@ -142,8 +142,9 @@ async def on_habits_input(
     await message.answer(
         AFTER_HABITS_HEADER
         + f"Твои привычки:\n{habits_list}\n\n"
-        "Теперь попробуем сразу — заполним чекбоксы за вчерашний день, "
-        "отметим какой он был и запланируем сегодня 🚀"
+        "Если захочешь поменять список — команда /habits.\n\n"
+        "А сейчас давай попробуем сразу — заполним чекбоксы за вчерашний "
+        "день, отметим какой он был и запланируем сегодня 🚀"
     )
     await state.clear()
 

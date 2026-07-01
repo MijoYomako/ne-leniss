@@ -18,6 +18,7 @@ from ne_leniss.db import (
     sessionmaker_from_engine,
 )
 from ne_leniss.handlers import app as app_handler
+from ne_leniss.handlers import habits as habits_handler
 from ne_leniss.handlers import morning as morning_handler
 from ne_leniss.handlers import note as note_handler
 from ne_leniss.handlers import onboarding as onboarding_handler
@@ -50,6 +51,7 @@ async def main() -> None:
     dp = Dispatcher(storage=MemoryStorage())
     dp.include_router(start_handler.router)
     dp.include_router(onboarding_handler.router)
+    dp.include_router(habits_handler.router)
     dp.include_router(note_handler.router)
     dp.include_router(plan_handler.router)
     dp.include_router(app_handler.router)

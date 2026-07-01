@@ -84,13 +84,27 @@ class Repository:
             await s.refresh(entry)
             return entry.id
 
-    async def set_habit_checks(self, day_entry_id: int, checks: dict[str, bool]) -> None:
+    async def set_habit_checks(
+        self,
+        day_entry_id: int,
+        habits: list[tuple[str, str]],
+        checks: dict[str, bool],
+    ) -> None:
+        """Overwrite habit_checks for a day. `habits` is the set of habits
+        active for this day (used to persist labels for historical accuracy)."""
         async with self._sm() as s:
             await s.execute(
                 delete(HabitCheck).where(HabitCheck.day_entry_id == day_entry_id)
             )
-            for key, value in checks.items():
-                s.add(HabitCheck(day_entry_id=day_entry_id, habit_key=key, checked=value))
+            for key, label in habits:
+                s.add(
+                    HabitCheck(
+                        day_entry_id=day_entry_id,
+                        habit_key=key,
+                        label=label,
+                        checked=checks.get(key, False),
+                    )
+                )
             await s.commit()
 
     async def set_mood(self, day_entry_id: int, mood: str) -> None:
@@ -130,8 +144,13 @@ class Repository:
         self,
         user_id: int,
         target: date,
-        habits: list[tuple[str, str]],
+        current_habits: list[tuple[str, str]],
     ) -> dict:
+        """current_habits is used as fallback for empty days (day exists but
+        no habit_checks yet). Days that already have checks stored show
+        their historical habit list, so past days keep the labels they had
+        when the user filled them.
+        """
         async with self._sm() as s:
             entry = (
                 await s.execute(
@@ -140,16 +159,26 @@ class Repository:
                     )
                 )
             ).scalar_one_or_none()
-            checks: dict[str, bool] = {}
+
+            habits_display: list[tuple[str, str]] = []
+            checks_map: dict[str, bool] = {}
+
             if entry is not None:
                 rows = (
                     await s.execute(
-                        select(HabitCheck.habit_key, HabitCheck.checked).where(
+                        select(HabitCheck.habit_key, HabitCheck.label, HabitCheck.checked).where(
                             HabitCheck.day_entry_id == entry.id
                         )
                     )
                 ).all()
-                checks = {k: bool(v) for k, v in rows}
+                if rows:
+                    for key, label, checked in rows:
+                        habits_display.append((key, label or key))
+                        checks_map[key] = bool(checked)
+
+            if not habits_display:
+                habits_display = list(current_habits)
+
             plans = (
                 await s.execute(
                     select(Plan.text)
@@ -168,8 +197,8 @@ class Repository:
                 "date": target.isoformat(),
                 "mood": entry.mood if entry else None,
                 "habits": [
-                    {"key": k, "label": label, "checked": checks.get(k, False)}
-                    for k, label in habits
+                    {"key": k, "label": label, "checked": checks_map.get(k, False)}
+                    for k, label in habits_display
                 ],
                 "plans": [r[0] for r in plans],
                 "journal": [r[0] for r in journal],
@@ -180,10 +209,15 @@ class Repository:
         user_id: int,
         start: date,
         end: date,
-        habits: list[tuple[str, str]],
+        current_habits: list[tuple[str, str]],
     ) -> list[dict]:
+        """Returns per-day summary. `checked_count`/`total_habits` reflect
+        the habits recorded for that day (historical accuracy).
+        For empty days we fall back to `current_habits` length so the tile
+        still renders a max denominator.
+        """
         start_iso, end_iso = start.isoformat(), end.isoformat()
-        habit_keys = [k for k, _ in habits]
+        default_total = len(current_habits) or 1
         async with self._sm() as s:
             entries = (
                 await s.execute(
@@ -238,17 +272,18 @@ class Repository:
             }
             result = []
             for e in entries:
-                all_checks = checks_by_entry.get(e.id, {})
-                user_relevant = {k: all_checks.get(k, False) for k in habit_keys}
+                day_checks = checks_by_entry.get(e.id, {})
+                total = len(day_checks) if day_checks else default_total
+                checked_count = sum(1 for v in day_checks.values() if v)
                 result.append(
                     {
                         "date": e.date,
-                        "checked_count": sum(1 for v in user_relevant.values() if v),
-                        "total_habits": len(habit_keys),
+                        "checked_count": checked_count,
+                        "total_habits": total,
                         "mood": e.mood,
                         "has_plans": e.date in plan_dates,
                         "has_journal": e.date in journal_dates,
-                        "checks": user_relevant,
+                        "checks": day_checks,
                     }
                 )
             return result

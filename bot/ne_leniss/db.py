@@ -31,6 +31,7 @@ async def _migrate_sqlite_users(engine: AsyncEngine) -> None:
     """Idempotent column-add for SQLite. SQLAlchemy create_all doesn't ALTER."""
     statements = [
         "ALTER TABLE users ADD COLUMN habits_json TEXT",
+        "ALTER TABLE habit_checks ADD COLUMN label TEXT",
     ]
     async with engine.begin() as conn:
         for stmt in statements:

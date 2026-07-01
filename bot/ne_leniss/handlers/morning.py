@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from aiogram import Bot, F, Router
@@ -112,7 +112,7 @@ async def on_checkbox_callback(
         tz = ZoneInfo(user.timezone)
         yesterday = (datetime.now(tz) - timedelta(days=1)).date()
         entry_id = await repo.find_or_create_day_entry(user.tg_id, yesterday)
-        await repo.set_habit_checks(entry_id, checkboxes)
+        await repo.set_habit_checks(entry_id, habits, checkboxes)
         await query.message.edit_text("Чекбоксы за вчера сохранены ✓")
         await query.message.answer(
             "Каким был вчерашний день?",
@@ -184,6 +184,40 @@ FIRST_RUN_CONGRATS = (
 )
 
 
+# Rotating final messages after plans are saved. Rotate per day+user so the
+# same person doesn't see the same tip 3 days in a row.
+FINAL_MESSAGES: list[str] = [
+    (
+        "Сохранил. Хорошего дня ✓\n\n"
+        "В любой момент можешь записать заметку через /note — например, "
+        "интересную мысль или фильм, который тебе порекомендовали."
+    ),
+    (
+        "Готово. Продуктивного дня ✓\n\n"
+        "Знал? Через /plan можно запланировать задачу на любой день. "
+        "Например: <code>/plan 5.07 записаться к врачу</code> — когда наступит "
+        "5 июля, я покажу этот план в утреннем сообщении."
+    ),
+    (
+        "Сохранил. Пусть день пройдёт по плану ✓\n\n"
+        "Через /note можно вести дневник — короткие мысли, впечатления, "
+        "цитаты. Всё уйдёт в календарь этого дня, и ты сможешь вернуться "
+        "к ним через месяц."
+    ),
+    (
+        "Готово, погнали ✓\n\n"
+        "Хочешь ничего не забыть на следующей неделе? /plan запомнит за тебя. "
+        "Дата в форматах <code>tomorrow</code>, <code>+3</code>, <code>5.07</code> "
+        "или <code>2026-07-15</code>."
+    ),
+]
+
+
+def _pick_final_message(user_id: int, today: date) -> str:
+    idx = (today.toordinal() + user_id) % len(FINAL_MESSAGES)
+    return FINAL_MESSAGES[idx]
+
+
 async def _send_congrats_if_first(
     message: Message, state_data: dict, settings: Settings
 ) -> None:
@@ -204,8 +238,14 @@ async def on_plans_skip(
     settings: Settings,
 ) -> None:
     data = await state.get_data()
-    await query.message.edit_text("День начался ✓")
-    await _send_congrats_if_first(query.message, data, settings)
+    await query.message.edit_text("Окей, оставил как есть ✓")
+    # If it's the first run, only send the congratulation; otherwise pick a
+    # rotating hint about /note or /plan.
+    if data.get("is_first_run"):
+        await _send_congrats_if_first(query.message, data, settings)
+    elif query.from_user:
+        tip = _pick_final_message(query.from_user.id, date.today())
+        await query.message.answer(tip, parse_mode="HTML")
     await state.clear()
     await query.answer()
 
@@ -228,8 +268,12 @@ async def on_plans_text(
     today = datetime.now(ZoneInfo(user.timezone)).date()
     await repo.append_plan(user.tg_id, today, text)
     data = await state.get_data()
-    await message.answer("Сохранил. День начался ✓")
-    await _send_congrats_if_first(message, data, settings)
+    if data.get("is_first_run"):
+        await message.answer("Сохранил ✓")
+        await _send_congrats_if_first(message, data, settings)
+    else:
+        tip = _pick_final_message(message.from_user.id, today)
+        await message.answer(tip, parse_mode="HTML")
     await state.clear()
 
 

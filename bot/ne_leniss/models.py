@@ -53,8 +53,9 @@ class HabitCheck(Base):
     day_entry_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("day_entries.id", ondelete="CASCADE"), primary_key=True
     )
-    habit_key: Mapped[str] = mapped_column(String(32), primary_key=True)
+    habit_key: Mapped[str] = mapped_column(String(64), primary_key=True)
     checked: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    label: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
     day_entry: Mapped[DayEntry] = relationship(back_populates="habit_checks")
 

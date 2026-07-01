@@ -45,7 +45,7 @@ async def cmd_seed(message: Message, repo: Repository) -> None:
             k: rng.random() < base + rng.uniform(-0.15, 0.15)
             for k, _ in habits
         }
-        await repo.set_habit_checks(entry_id, checks)
+        await repo.set_habit_checks(entry_id, habits, checks)
         if rng.random() < 0.75:
             await repo.set_mood(entry_id, rng.choice(moods))
         if rng.random() < 0.35:
