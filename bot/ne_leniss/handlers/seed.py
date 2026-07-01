@@ -37,7 +37,14 @@ async def cmd_seed(message: Message, repo: Repository) -> None:
 
     days_count = 7
     skip_recent = 2  # leave yesterday + day-before empty
-    for days_back in range(skip_recent + 1, days_count + skip_recent + 1):
+
+    # Deterministic-diverse mood plan so demo shows all 5 varieties.
+    mood_plan: list[str | None] = list(moods) + rng.sample(moods, 2)
+    rng.shuffle(mood_plan)
+    for i in rng.sample(range(len(mood_plan)), rng.randint(1, 2)):
+        mood_plan[i] = None
+
+    for i, days_back in enumerate(range(skip_recent + 1, days_count + skip_recent + 1)):
         d = today - timedelta(days=days_back)
         entry_id = await repo.find_or_create_day_entry(user.tg_id, d)
         base = 0.30 + 0.50 * (1 - days_back / (days_count + skip_recent))
@@ -46,8 +53,8 @@ async def cmd_seed(message: Message, repo: Repository) -> None:
             for k, _ in habits
         }
         await repo.set_habit_checks(entry_id, habits, checks)
-        if rng.random() < 0.75:
-            await repo.set_mood(entry_id, rng.choice(moods))
+        if mood_plan[i] is not None:
+            await repo.set_mood(entry_id, mood_plan[i])
         if rng.random() < 0.35:
             await repo.append_plan(user.tg_id, d, rng.choice(sample_plans))
         if rng.random() < 0.25:

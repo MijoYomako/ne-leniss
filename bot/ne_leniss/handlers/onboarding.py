@@ -125,9 +125,16 @@ async def on_habits_input(
         "погулял, расслабился", "встретился с другом",
     ]
     rng = random.Random(user.tg_id)
+    # Pre-plan moods so demo shows all 5 varieties at least once.
+    # 7 slots = all 5 moods + 2 extras shuffled + 1-2 days without mood.
+    mood_plan: list[str | None] = list(moods) + rng.sample(moods, 2)
+    rng.shuffle(mood_plan)
+    for i in rng.sample(range(len(mood_plan)), rng.randint(1, 2)):
+        mood_plan[i] = None
+
     # Fill days 3..9 ago (7 days), keep yesterday & day-before empty so the
     # user doesn't start with a fake streak.
-    for days_back in range(3, 10):
+    for i, days_back in enumerate(range(3, 10)):
         d = today - timedelta(days=days_back)
         entry_id = await repo.find_or_create_day_entry(user.tg_id, d)
         base = 0.45 + 0.25 * (1 - days_back / 10)
@@ -136,8 +143,8 @@ async def on_habits_input(
             for k, _ in habits
         }
         await repo.set_habit_checks(entry_id, habits, checks)
-        if rng.random() < 0.75:
-            await repo.set_mood(entry_id, rng.choice(moods))
+        if mood_plan[i] is not None:
+            await repo.set_mood(entry_id, mood_plan[i])
         if rng.random() < 0.35:
             await repo.append_plan(user.tg_id, d, rng.choice(sample_plans))
         if rng.random() < 0.25:
