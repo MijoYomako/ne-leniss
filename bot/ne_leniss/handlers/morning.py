@@ -229,6 +229,10 @@ async def _send_congrats_if_first(
         ]
     )
     await message.answer(FIRST_RUN_CONGRATS, reply_markup=kb)
+    # Pin a persistent app shortcut so the user always has one-tap access.
+    from ne_leniss.handlers.app import pin_app_shortcut
+
+    await pin_app_shortcut(message, settings)
 
 
 @router.callback_query(MorningStates.awaiting_plans, F.data == "plans:skip")
