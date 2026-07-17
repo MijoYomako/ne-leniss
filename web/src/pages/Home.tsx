@@ -15,7 +15,6 @@ export function Home() {
   const to = format(today, "yyyy-MM-dd");
   const todayIso = format(today, "yyyy-MM-dd");
 
-  const meQ = useQuery({ queryKey: ["me"], queryFn: api.me });
   const daysQ = useQuery({
     queryKey: ["days", from, to],
     queryFn: () => api.days(from, to),
@@ -34,10 +33,7 @@ export function Home() {
   return (
     <div className="min-h-screen px-4 py-5 max-w-2xl mx-auto">
       <header className="mb-6">
-        <h1 className="text-2xl font-semibold">
-          Салют, {meQ.data?.first_name ?? "друг"} 👋
-        </h1>
-        <div className="mt-3">
+        <div>
           <div className="text-xs uppercase text-tg-hint tracking-wider font-semibold mb-1.5">
             Планы на сегодня
           </div>
