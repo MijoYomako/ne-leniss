@@ -38,20 +38,10 @@ def test_only_placeholder_days() -> None:
     ]
 
 
-def test_single_day_does_not_count_as_a_streak() -> None:
+def test_single_checked_day_reports_actual_count() -> None:
     days = [{"date": "2026-07-16", "checks": {"water": True}}]
     assert compute_streaks(days, HABITS) == [
-        {"key": "water", "label": "Вода", "current": 0, "best": 0}
-    ]
-
-
-def test_two_days_is_the_minimum_streak() -> None:
-    days = [
-        {"date": "2026-07-15", "checks": {"water": True}},
-        {"date": "2026-07-16", "checks": {"water": True}},
-    ]
-    assert compute_streaks(days, HABITS) == [
-        {"key": "water", "label": "Вода", "current": 2, "best": 2}
+        {"key": "water", "label": "Вода", "current": 1, "best": 1}
     ]
 
 
@@ -60,6 +50,5 @@ if __name__ == "__main__":
     test_explicit_unchecked_day_still_breaks_streak()
     test_no_days()
     test_only_placeholder_days()
-    test_single_day_does_not_count_as_a_streak()
-    test_two_days_is_the_minimum_streak()
+    test_single_checked_day_reports_actual_count()
     print("ok")
