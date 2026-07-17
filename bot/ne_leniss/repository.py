@@ -160,6 +160,26 @@ class Repository:
             ).all()
             return "\n".join(r[0].strip() for r in rows if r[0].strip())
 
+    async def read_journal_range(
+        self, user_id: int, start: date, end: date
+    ) -> list[tuple[date, str]]:
+        start_iso, end_iso = start.isoformat(), end.isoformat()
+        async with self._sm() as s:
+            rows = (
+                await s.execute(
+                    select(JournalEntry.date, JournalEntry.text)
+                    .where(
+                        and_(
+                            JournalEntry.user_id == user_id,
+                            JournalEntry.date >= start_iso,
+                            JournalEntry.date <= end_iso,
+                        )
+                    )
+                    .order_by(JournalEntry.date, JournalEntry.created_at)
+                )
+            ).all()
+            return [(date.fromisoformat(d), text) for d, text in rows]
+
     # ---------- API queries ----------
 
     async def get_day_summary(

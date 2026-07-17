@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from aiogram import F, Router
@@ -10,6 +10,11 @@ from aiogram.types import Message
 from ne_leniss.repository import Repository
 
 router = Router()
+
+MONTHS = [
+    "янв", "фев", "мар", "апр", "мая", "июн",
+    "июл", "авг", "сен", "окт", "ноя", "дек",
+]
 
 
 class NoteStates(StatesGroup):
@@ -41,6 +46,25 @@ async def cmd_note(message: Message, repo: Repository, state: FSMContext) -> Non
         "Пиши следующим сообщением — сохраню в журнал сегодня.\n"
         "Передумал — /cancel"
     )
+
+
+@router.message(Command("summary_note_14"))
+async def cmd_summary_note_14(message: Message, repo: Repository) -> None:
+    if message.from_user is None:
+        return
+    user = await repo.get_or_create_user(
+        tg_id=message.from_user.id,
+        username=message.from_user.username,
+        first_name=message.from_user.first_name,
+    )
+    today = datetime.now(ZoneInfo(user.timezone)).date()
+    entries = await repo.read_journal_range(user.tg_id, today - timedelta(days=13), today)
+    if not entries:
+        await message.answer("За последние 14 дней заметок нет. Записать что-нибудь? /note")
+        return
+    lines = ["📔 Заметки за 14 дней", ""]
+    lines.extend(f"{d.day} {MONTHS[d.month - 1]}: {text}" for d, text in entries)
+    await message.answer("\n".join(lines))
 
 
 @router.message(NoteStates.awaiting_text, F.text == "/cancel")
