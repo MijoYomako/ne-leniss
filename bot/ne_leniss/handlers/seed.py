@@ -38,8 +38,8 @@ async def cmd_seed(message: Message, repo: Repository) -> None:
     days_count = 7
     skip_recent = 2  # leave yesterday + day-before empty
 
-    # Deterministic-diverse mood plan so demo shows all 5 varieties.
-    mood_plan: list[str | None] = list(moods) + rng.sample(moods, 2)
+    # Deterministic-diverse mood plan so demo shows every mood variety.
+    mood_plan: list[str | None] = list(moods) + rng.sample(moods, days_count - len(moods))
     rng.shuffle(mood_plan)
     for i in rng.sample(range(len(mood_plan)), rng.randint(1, 2)):
         mood_plan[i] = None

@@ -2,7 +2,8 @@
 // Palette choices:
 //   Good        → grass green (light, warm)
 //   Productive  → emerald / darker green (energetic, distinct from Good)
-//   Could be better → yellow / amber (clearly not red)
+//   Normal      → neutral slate (deliberately unremarkable)
+//   Could be better → amber (clearly not red)
 //   Bad         → red
 //   Relaxing    → sky blue (soft, restful)
 
@@ -29,12 +30,19 @@ export const MOOD: Record<string, MoodVisual> = {
     emoji: "⚡",
     label: "Продуктивный",
   },
+  Normal: {
+    bgLight: "#e2e8f0",
+    bgDark: "#334155",
+    accent: "#64748b",
+    emoji: "✅",
+    label: "Обычный",
+  },
   "Could be better": {
     bgLight: "#fde68a",
     bgDark: "#78350f",
     accent: "#eab308",
-    emoji: "🤔",
-    label: "Так себе",
+    emoji: "😕",
+    label: "Могло бы быть лучше",
   },
   Bad: {
     bgLight: "#fecaca",

@@ -15,6 +15,7 @@ from aiogram.types import (
 
 from ne_leniss.config import Settings
 from ne_leniss.habits import (
+    MOOD_KEY_TO_NAME,
     encode_habits,
     parse_habits_input,
     user_habits_or_default,
@@ -115,7 +116,7 @@ async def on_habits_input(
     # Seed background data (days 3..30 ago), preserving last 2 days empty.
     tz = ZoneInfo(user.timezone)
     today = datetime.now(tz).date()
-    moods = ["Good", "Productive", "Could be better", "Bad", "Relaxing"]
+    moods = list(MOOD_KEY_TO_NAME.values())
     sample_plans = [
         "зал в 19", "встреча в кафе", "позвонить родителям",
         "прочитать главу", "закончить проект", "прогулка вечером",
@@ -125,9 +126,9 @@ async def on_habits_input(
         "погулял, расслабился", "встретился с другом",
     ]
     rng = random.Random(user.tg_id)
-    # Pre-plan moods so demo shows all 5 varieties at least once.
-    # 7 slots = all 5 moods + 2 extras shuffled + 1-2 days without mood.
-    mood_plan: list[str | None] = list(moods) + rng.sample(moods, 2)
+    # Pre-plan moods so demo shows every mood variety at least once.
+    # 7 slots = all moods + extras shuffled + 1-2 days without mood.
+    mood_plan: list[str | None] = list(moods) + rng.sample(moods, 7 - len(moods))
     rng.shuffle(mood_plan)
     for i in rng.sample(range(len(mood_plan)), rng.randint(1, 2)):
         mood_plan[i] = None

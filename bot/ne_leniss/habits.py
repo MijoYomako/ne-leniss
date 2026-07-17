@@ -14,13 +14,15 @@ DEFAULT_HABITS: list[tuple[str, str]] = [
 MOOD_OPTIONS: list[tuple[str, str]] = [
     ("good", "😊 Хороший"),
     ("productive", "⚡ Продуктивный"),
-    ("could_be_better", "🤔 Так себе"),
+    ("normal", "✅ Обычный"),
+    ("could_be_better", "😕 Могло бы быть лучше"),
     ("bad", "😞 Плохой"),
     ("relaxing", "🌿 Расслабленный"),
 ]
 MOOD_KEY_TO_NAME: dict[str, str] = {
     "good": "Good",
     "productive": "Productive",
+    "normal": "Normal",
     "could_be_better": "Could be better",
     "bad": "Bad",
     "relaxing": "Relaxing",
