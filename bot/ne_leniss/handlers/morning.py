@@ -2,6 +2,7 @@ from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from aiogram import Bot, F, Router
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.base import BaseStorage, StorageKey
@@ -17,6 +18,8 @@ from ne_leniss.config import Settings
 from ne_leniss.habits import MOOD_KEY_TO_NAME, MOOD_OPTIONS, user_habits_or_default
 from ne_leniss.models import User
 from ne_leniss.repository import Repository
+from ne_leniss.services.streaks import compute_streaks
+from ne_leniss.services.weekly_summary import build_weekly_summary
 
 router = Router()
 
@@ -73,6 +76,20 @@ async def send_morning_message(
     initial = {key: False for key, _ in habits}
     state_key = StorageKey(bot_id=bot.id, chat_id=user.tg_id, user_id=user.tg_id)
     state = FSMContext(storage=storage, key=state_key)
+
+    # Previous checklist never got a "Готово" — its buttons are still live
+    # and share this same FSM state. Strip them so the user can't tap a
+    # stale message and hijack the flow meant for the new one.
+    if await state.get_state() == MorningStates.awaiting_checkboxes.state:
+        stale_message_id = (await state.get_data()).get("checkbox_message_id")
+        if stale_message_id:
+            try:
+                await bot.edit_message_reply_markup(
+                    chat_id=user.tg_id, message_id=stale_message_id, reply_markup=None
+                )
+            except TelegramBadRequest:
+                pass
+
     await state.set_state(MorningStates.awaiting_checkboxes)
     await state.update_data(
         checkboxes=initial,
@@ -81,11 +98,12 @@ async def send_morning_message(
     )
 
     header = "Поехали 🚀\n\nЧекни вчерашний день:" if is_first_run else "Доброе утро 🌅\n\nЧекни вчерашний день:"
-    await bot.send_message(
+    sent = await bot.send_message(
         chat_id=user.tg_id,
         text=header,
         reply_markup=build_checkbox_keyboard(habits, initial),
     )
+    await state.update_data(checkbox_message_id=sent.message_id)
 
 
 @router.callback_query(MorningStates.awaiting_checkboxes, F.data.startswith("chk:"))
@@ -115,7 +133,7 @@ async def on_checkbox_callback(
         await repo.set_habit_checks(entry_id, habits, checkboxes)
         await query.message.edit_text("Чекбоксы за вчера сохранены ✓")
         await query.message.answer(
-            "Каким был вчерашний день?",
+            "Каким был вчерашний день? Отмечай как чувствуешь",
             reply_markup=build_mood_keyboard(),
         )
         await state.set_state(MorningStates.awaiting_mood)
@@ -154,6 +172,17 @@ async def on_mood_callback(
     await repo.set_mood(yesterday_id, mood_name)
     await query.message.edit_text(f"Вчера: {label} ✓")
 
+    if yesterday.weekday() == 6:  # Sunday just filled in → past week is complete
+        habits = user_habits_or_default(user.habits_json)
+        week_days = await repo.query_days_range(
+            user.tg_id, yesterday - timedelta(days=6), yesterday, habits
+        )
+        streak_days = await repo.query_days_range(
+            user.tg_id, yesterday - timedelta(days=89), yesterday, habits
+        )
+        streaks = compute_streaks(streak_days, habits)
+        await query.message.answer(build_weekly_summary(habits, week_days, streaks))
+
     today = datetime.now(tz).date()
     await repo.find_or_create_day_entry(user.tg_id, today)
     existing = await repo.read_plans_text(user.tg_id, today)
@@ -168,8 +197,12 @@ async def on_mood_callback(
         )
         await query.message.answer(prompt, reply_markup=kb)
     else:
+        kb = InlineKeyboardMarkup(
+            inline_keyboard=[[InlineKeyboardButton(text="🙅 Нет планов", callback_data="plans:skip")]]
+        )
         await query.message.answer(
-            "Какие планы на сегодня? Пиши свободным текстом или строками."
+            "Какие планы на сегодня? Пиши свободным текстом или строками — или жми «Нет планов».",
+            reply_markup=kb,
         )
     await state.set_state(MorningStates.awaiting_plans)
     await query.answer()
@@ -187,16 +220,68 @@ FIRST_RUN_CONGRATS = (
 # Rotating final messages after plans are saved. Rotate per day+user so the
 # same person doesn't see the same tip 3 days in a row.
 FINAL_MESSAGES: list[str] = [
+    "Записал. День начался, и слава Богу...",
     (
-        "Сохранил. Хорошего дня ✓\n\n"
-        "В любой момент можешь записать заметку через /note — например, "
-        "интересную мысль или фильм, который тебе порекомендовали."
+        "Сохранил. Хорошего дня ✨\n\n"
+        "Одна из важных фич бота — /note, заметка.\n\n"
+        "Это может быть какая-то мысль, которую не хочешь потерять, или "
+        "фильм, который тебе посоветовали. Кто-то ведёт дневник "
+        "благодарностей, кто-то просто рассказывает о своём дне.\n\n"
+        "Вообще, ведение дневника — мощный инструмент: он позволяет легче "
+        "фиксироваться на своих достижениях (или неудачах), чтобы извлекать "
+        "из них уроки, а не проживать одни и те же ситуации по кругу. Когда "
+        "мысли остаются только в голове, они склонны повторяться, "
+        "искажаться и обрастать эмоциями — а на бумаге (или в заметках) они "
+        "становятся конкретными фактами, которые можно спокойно "
+        "проанализировать: что сработало, что нет и почему.\n\n"
+        "Мишок верит в тебя 🐻"
     ),
     (
-        "Готово. Продуктивного дня ✓\n\n"
-        "Знал? Через /plan можно запланировать задачу на любой день. "
-        "Например: <code>/plan 5.07 записаться к врачу</code> — когда наступит "
-        "5 июля, я покажу этот план в утреннем сообщении."
+        "Готово.\n\n"
+        "День официально начался, обратной дороги нет, разве что снова лечь "
+        "спать — но мы туда не пойдём."
+    ),
+    (
+        "Готово. Продуктивного дня 💪\n\n"
+        "Через /plan можно запланировать задачу на любой день. Например: "
+        "<code>/plan 5.08 Зубной в 14:00</code> — когда наступит 5 августа, "
+        "я покажу этот план в утреннем сообщении. Это быстрее, чем "
+        "поставить напоминалку."
+    ),
+    (
+        "Готово\n\n"
+        "Марк Аврелий вставал утром и напоминал себе, что сегодня встретит "
+        "ленивых, неблагодарных и лживых людей — и всё равно шёл делать "
+        "свою работу, потому что это была его работа, а не реакция на "
+        "чужую. План на сегодня — то же самое: не жди, что день будет "
+        "удобным. Просто делай то, что в списке, независимо от того, как "
+        "он сложится."
+    ),
+    (
+        "Сохранил ✓\n\n"
+        "Планы на день не обязательно трекать в приложении. Ты в любой "
+        "момент можешь зайти в этот чат и посмотреть, что запланировал "
+        "сегодня утром. Кайф? Кайф."
+    ),
+    (
+        "Записал.\n\n"
+        "А Сенека писал, что мы не потому не решаемся, что вещи трудны, а "
+        "вещи трудны, потому что мы не решаемся начать. Первый пункт плана "
+        "обычно самый неприятный именно поэтому — не потому что он "
+        "объективно сложный. Начни с него, и остальное покажется легче."
+    ),
+    (
+        "Хорошего дня, привет от меня 🐻\n\n"
+        "Кстати, если Спорт и Чтение уже не кажутся амбициозными "
+        "чекбоксами, ты всегда можешь поменять список отслеживаемых "
+        "привычек через /habits."
+    ),
+    (
+        "Сохранил ✨\n\n"
+        "Планирование дня — это акт, а не гарантия. Ты не подписываешь "
+        "контракт с вселенной, что всё пройдёт гладко. Ты просто говоришь "
+        "себе, куда смотреть в следующие несколько часов, если станет "
+        "непонятно, чем заняться."
     ),
     (
         "Сохранил. Пусть день пройдёт по плану ✓\n\n"
@@ -205,16 +290,58 @@ FINAL_MESSAGES: list[str] = [
         "к ним через месяц."
     ),
     (
-        "Готово, погнали ✓\n\n"
-        "Хочешь ничего не забыть на следующей неделе? /plan запомнит за тебя. "
-        "Дата в форматах <code>tomorrow</code>, <code>+3</code>, <code>5.07</code> "
-        "или <code>2026-07-15</code>."
+        "Готово, день начался 🍃\n\n"
+        "Хорошее настроение иногда прячется не в мыслях, а в теле — в том, "
+        "чтобы попить воды, выйти на воздух, размяться, если давно сидишь. "
+        "Прежде чем разбираться, что не так с головой, стоит на секунду "
+        "проверить, что не так с телом."
     ),
     (
-        "Сохранил ✓\n\n"
-        "💡 Планы на день не обязательно открывать в приложении. Они уже "
-        "здесь — пролистай этот чат наверх до моего утреннего сообщения, "
-        "там всё что ты запланировал."
+        "Готово, погнали ✓\n\n"
+        "Не забыть бы поздравить тётю в воскресенье... <code>/plan</code> "
+        "запомнит за тебя. Например: "
+        "<code>/plan 08.09 ДР Тётя Мотя</code>"
+    ),
+    (
+        "Готово\n\n"
+        "Один пропущенный день почти ничего не решает статистически. "
+        "Опасен не пропуск, а история, которую ты себе после него "
+        "рассказываешь — «ну всё, сорвался, смысла продолжать нет». "
+        "Пропустил — просто вернись завтра, без драмы.\n\n"
+        "Мишок верит в тебя 🐻"
+    ),
+    (
+        "Сохранил. День начался\n\n"
+        "«Размышления» Марка Аврелия — это вообще-то не книга, которую он "
+        "писал для читателей. Это его личный дневник, заметки самому себе, "
+        "которые он вёл, чтобы разобраться в собственной голове. То, что "
+        "ты сейчас делаешь, — та же практика, просто на 2000 лет позже.\n\n"
+        "Можешь в любое время написать заметку через /note."
+    ),
+    (
+        "Готово, погнали ✓\n\n"
+        "Совершенно нормально, если привычка сегодня выполнена «на "
+        "минимум» — вместо часа пять минут, вместо статьи один абзац. "
+        "Смысл не в объёме, а в том, чтобы не прервать цепочку и не "
+        "создать себе повод для истории про провал. Маленькое сделанное "
+        "почти всегда лучше большого отложенного."
+    ),
+    (
+        "Сохранил, поехали 🚙\n\n"
+        "Если сегодня будет момент, когда захочется поругать себя за "
+        "что-то мелкое — за пропущенную тренировку, несделанный звонок, "
+        "лишний час в телефоне — можно попробовать сказать себе то же "
+        "самое, что сказал бы другу в такой ситуации. Обычно это звучит "
+        "гораздо мягче.\n\n"
+        "Лошок"
+    ),
+    (
+        "Зафиксировал ✅\n\n"
+        "Леонардо да Винчи носил с собой блокнот и записывал вообще всё — "
+        "от инженерных идей до списка покупок. Не потому что каждая мысль "
+        "была гениальной, а потому что не угадаешь заранее, какая из них "
+        "окажется важной.\n\n"
+        "/note — чтобы оставить заметку на сегодняшний день."
     ),
 ]
 
