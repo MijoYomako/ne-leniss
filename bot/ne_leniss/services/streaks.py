@@ -1,5 +1,7 @@
 from datetime import date, datetime
 
+MIN_STREAK_LENGTH = 2  # a single checked day isn't a "streak" yet
+
 
 def compute_streaks(
     days: list[dict],
@@ -7,15 +9,20 @@ def compute_streaks(
 ) -> list[dict]:
     """Given days sorted by date ASC, compute current+best streak per habit.
 
-    A streak of N = N consecutive days where checked=True.
+    A streak of N = N consecutive days where checked=True. Below
+    MIN_STREAK_LENGTH it doesn't count as a streak yet and reports as 0.
     Current streak is counted ending on the latest date in `days`
     (if that date has check=True) — gaps reset streak to 0.
     """
-    if not days:
+    # Days with an empty `checks` dict are placeholders (e.g. "today", created
+    # by the morning message before the user has checked anything) — not yet
+    # filled, so they carry no signal and must not break or count in a streak.
+    filled_days = [d for d in days if d.get("checks")]
+    if not filled_days:
         return [{"key": k, "label": l, "current": 0, "best": 0} for k, l in habits]
 
-    sorted_days = sorted(days, key=lambda d: d["date"])
-    parsed = [(_to_date(d["date"]), d.get("checks", {})) for d in sorted_days]
+    sorted_days = sorted(filled_days, key=lambda d: d["date"])
+    parsed = [(_to_date(d["date"]), d["checks"]) for d in sorted_days]
 
     result = []
     for key, label in habits:
@@ -34,6 +41,10 @@ def compute_streaks(
         last_date = parsed[-1][0]
         last_checks = parsed[-1][1]
         current = running if last_checks.get(key) else 0
+        if current < MIN_STREAK_LENGTH:
+            current = 0
+        if best < MIN_STREAK_LENGTH:
+            best = 0
         result.append({"key": key, "label": label, "current": current, "best": best})
     return result
 
