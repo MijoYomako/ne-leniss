@@ -9,6 +9,7 @@ load_dotenv()
 import uvicorn
 from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.types import BotCommand
 
 from ne_leniss.api import build_fastapi
 from ne_leniss.config import load_settings
@@ -45,6 +46,17 @@ async def main() -> None:
     bot = Bot(token=settings.bot_token)
     me = await bot.get_me()
     log.info("Telegram OK: @%s", me.username)
+
+    await bot.set_my_commands(
+        [
+            BotCommand(command="app", description="Открыть приложение (календарь и стрики)"),
+            BotCommand(command="plan", description="Запланировать что-то на день"),
+            BotCommand(command="note", description="Записать заметку в журнал"),
+            BotCommand(command="summary_note_14", description="Заметки за последние 14 дней"),
+            BotCommand(command="habits", description="Изменить список привычек"),
+            BotCommand(command="pin", description="Закрепить ярлык приложения"),
+        ]
+    )
 
     repo = Repository(sessionmaker_from_engine(engine))
 
