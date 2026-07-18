@@ -5,6 +5,9 @@
 //   Normal      → neutral slate (deliberately unremarkable)
 //   Could be better → amber (clearly not red)
 //   Bad         → red
+//
+// "Relaxing" was retired from the picker (too many options) but stays here
+// so past days logged with it still render instead of going blank.
 //   Relaxing    → sky blue (soft, restful)
 
 export interface MoodVisual {

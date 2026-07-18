@@ -33,12 +33,13 @@ def build_weekly_summary(
             lines.append(f"🔥 {s['label']}: стрик {s['current']} дней подряд — красава!")
 
     if mood_counts:
+        # Iterate the week's actual mood values, not MOOD_OPTIONS: a mood
+        # option can be retired later while past weeks still logged it, and
+        # that history shouldn't silently disappear from the tally.
+        mood_labels = {MOOD_KEY_TO_NAME[key]: label for key, label in MOOD_OPTIONS}
         lines.append("")
         lines.append("Настроение за неделю:")
-        for key, label in MOOD_OPTIONS:
-            name = MOOD_KEY_TO_NAME[key]
-            count = mood_counts.get(name, 0)
-            if count:
-                lines.append(f"{label} — {count}")
+        for name, count in mood_counts.items():
+            lines.append(f"{mood_labels.get(name, name)} — {count}")
 
     return "\n".join(lines)

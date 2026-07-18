@@ -34,8 +34,17 @@ def test_no_moods_this_week_omits_section() -> None:
     assert "Настроение" not in text
 
 
+def test_retired_mood_still_counted_with_raw_name_fallback() -> None:
+    # "Relaxing" was removed from MOOD_OPTIONS, but a week can still contain
+    # a day logged with it before the option was retired.
+    week_days = [{"date": "2026-07-06", "checks": {}, "mood": "Relaxing"}]
+    text = build_weekly_summary(HABITS, week_days, streaks=[])
+    assert "Relaxing — 1" in text
+
+
 if __name__ == "__main__":
     test_habit_ratios_and_mood_tally()
     test_streak_callout_only_above_threshold()
     test_no_moods_this_week_omits_section()
+    test_retired_mood_still_counted_with_raw_name_fallback()
     print("ok")

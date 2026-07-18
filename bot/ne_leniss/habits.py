@@ -17,7 +17,6 @@ MOOD_OPTIONS: list[tuple[str, str]] = [
     ("normal", "✅ Обычный"),
     ("could_be_better", "😕 Могло бы быть лучше"),
     ("bad", "😞 Плохой"),
-    ("relaxing", "🌿 Расслабленный"),
 ]
 MOOD_KEY_TO_NAME: dict[str, str] = {
     "good": "Good",
@@ -25,7 +24,6 @@ MOOD_KEY_TO_NAME: dict[str, str] = {
     "normal": "Normal",
     "could_be_better": "Could be better",
     "bad": "Bad",
-    "relaxing": "Relaxing",
 }
 
 _TRANSLIT = {
