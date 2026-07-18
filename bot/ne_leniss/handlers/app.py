@@ -18,7 +18,7 @@ log = logging.getLogger("ne_leniss.app")
 def app_keyboard(webapp_url: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="🚀 Открыть приложение", web_app=WebAppInfo(url=webapp_url))]
+            [InlineKeyboardButton(text="🐻 Аппка", web_app=WebAppInfo(url=webapp_url))]
         ]
     )
 
@@ -30,7 +30,7 @@ async def pin_app_shortcut(message: Message, settings: Settings) -> None:
     """
     try:
         pin_msg = await message.answer(
-            "🚀 Быстрый доступ к твоему Календарю привычек",
+            "Доступ к календарю, чтобы трекать прогресс ➡️",
             reply_markup=app_keyboard(settings.webapp_url),
         )
         await message.bot.pin_chat_message(
