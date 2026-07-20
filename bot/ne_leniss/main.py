@@ -82,7 +82,7 @@ async def main() -> None:
     server = uvicorn.Server(
         uvicorn.Config(
             app=api,
-            host="0.0.0.0",
+            host=settings.host,
             port=settings.port,
             log_level="info",
             access_log=False,
