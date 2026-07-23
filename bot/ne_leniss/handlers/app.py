@@ -18,7 +18,7 @@ log = logging.getLogger("ne_leniss.app")
 def app_keyboard(webapp_url: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="🐻 Аппка", web_app=WebAppInfo(url=webapp_url))]
+            [InlineKeyboardButton(text="App", web_app=WebAppInfo(url=webapp_url))]
         ]
     )
 
