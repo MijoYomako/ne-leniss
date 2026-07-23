@@ -175,8 +175,9 @@ async def cmd_reset_onboarding(
     message: Message,
     repo: Repository,
     state: FSMContext,
+    settings: Settings,
 ) -> None:
-    if message.from_user is None:
+    if message.from_user is None or not settings.enable_debug_commands:
         return
     await repo.wipe_user_data(message.from_user.id)
     await state.clear()

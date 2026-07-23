@@ -415,8 +415,9 @@ async def cmd_trigger_morning(
     bot: Bot,
     repo: Repository,
     state: FSMContext,
+    settings: Settings,
 ) -> None:
-    if message.from_user is None:
+    if message.from_user is None or not settings.enable_debug_commands:
         return
     user = await repo.get_or_create_user(
         tg_id=message.from_user.id,

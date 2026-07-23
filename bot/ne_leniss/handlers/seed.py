@@ -5,6 +5,7 @@ from zoneinfo import ZoneInfo
 from aiogram import F, Router
 from aiogram.types import Message
 
+from ne_leniss.config import Settings
 from ne_leniss.habits import MOOD_KEY_TO_NAME, user_habits_or_default
 from ne_leniss.repository import Repository
 
@@ -12,8 +13,8 @@ router = Router()
 
 
 @router.message(F.text == "/seed")
-async def cmd_seed(message: Message, repo: Repository) -> None:
-    if message.from_user is None:
+async def cmd_seed(message: Message, repo: Repository, settings: Settings) -> None:
+    if message.from_user is None or not settings.enable_debug_commands:
         return
     user = await repo.get_or_create_user(
         tg_id=message.from_user.id,

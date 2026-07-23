@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from sqlalchemy import event
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     async_sessionmaker,
@@ -9,12 +10,26 @@ from sqlalchemy.ext.asyncio import (
 from ne_leniss.models import Base
 
 
+def _sqlite_pragmas(dbapi_conn, _record) -> None:
+    # WAL lets the web API read while the bot writes without either blocking
+    # the other — matters when an onboarding rush and the morning scan overlap.
+    # busy_timeout gives a writer up to 5s to acquire the lock before erroring.
+    cur = dbapi_conn.cursor()
+    cur.execute("PRAGMA journal_mode=WAL")
+    cur.execute("PRAGMA busy_timeout=5000")
+    cur.execute("PRAGMA synchronous=NORMAL")
+    cur.close()
+
+
 def create_async_engine_from_url(url: str) -> AsyncEngine:
     if url.startswith("sqlite+aiosqlite:///"):
         rel = url.removeprefix("sqlite+aiosqlite:///")
         if not rel.startswith("/"):
             Path(rel).parent.mkdir(parents=True, exist_ok=True)
-    return create_async_engine(url, echo=False, future=True)
+    engine = create_async_engine(url, echo=False, future=True)
+    if url.startswith("sqlite"):
+        event.listen(engine.sync_engine, "connect", _sqlite_pragmas)
+    return engine
 
 
 def sessionmaker_from_engine(engine: AsyncEngine) -> async_sessionmaker:
