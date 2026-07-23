@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import sys
+from pathlib import Path
 
 from dotenv import load_dotenv
 
@@ -8,7 +9,6 @@ load_dotenv()
 
 import uvicorn
 from aiogram import Bot, Dispatcher
-from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import BotCommand
 
 from ne_leniss.api import build_fastapi
@@ -18,6 +18,7 @@ from ne_leniss.db import (
     init_db,
     sessionmaker_from_engine,
 )
+from ne_leniss.fsm_storage import JsonFileStorage
 from ne_leniss.handlers import app as app_handler
 from ne_leniss.handlers import habits as habits_handler
 from ne_leniss.handlers import morning as morning_handler
@@ -60,7 +61,7 @@ async def main() -> None:
 
     repo = Repository(sessionmaker_from_engine(engine))
 
-    dp = Dispatcher(storage=MemoryStorage())
+    dp = Dispatcher(storage=JsonFileStorage(Path("data/fsm_state.json")))
     dp.include_router(start_handler.router)
     dp.include_router(onboarding_handler.router)
     dp.include_router(habits_handler.router)
