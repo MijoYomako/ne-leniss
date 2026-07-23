@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import signal
 import sys
 from pathlib import Path
 
@@ -78,6 +79,24 @@ async def main() -> None:
     scheduler = build_scheduler(bot, repo, dp.fsm.storage)
     scheduler.start()
     log.info("Scheduler started (per-minute morning scan)")
+
+    # Ops lever: `kill -USR1 <pid>` re-sends a fresh morning message to every
+    # onboarded user. Runs in-process, so FSM state lands in the live
+    # dispatcher's storage (an external script writing the JSON file would be
+    # invisible to the running process). Root-on-host only — no network surface.
+    async def _resend_morning_all() -> None:
+        users = await repo.all_onboarded_users()
+        log.info("SIGUSR1: resending morning to %d onboarded users", len(users))
+        for u in users:
+            try:
+                await morning_handler.send_morning_message(u, bot, repo, dp.fsm.storage)
+                log.info("morning resent to %s", u.tg_id)
+            except Exception:
+                log.exception("morning resend failed for %s", u.tg_id)
+
+    asyncio.get_running_loop().add_signal_handler(
+        signal.SIGUSR1, lambda: asyncio.create_task(_resend_morning_all())
+    )
 
     api = build_fastapi(repo, settings)
     server = uvicorn.Server(

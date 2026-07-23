@@ -33,9 +33,20 @@ async def test_read_journal_range_empty() -> None:
     assert entries == []
 
 
+async def test_all_onboarded_users_excludes_users_without_habits() -> None:
+    repo = await _make_repo()
+    await repo.get_or_create_user(1, "onboarded", "O")
+    await repo.set_user_habits(1, '[{"key": "sport", "label": "Спорт"}]')
+    await repo.get_or_create_user(2, "not_onboarded", "N")  # no habits set
+
+    users = await repo.all_onboarded_users()
+    assert [u.tg_id for u in users] == [1], [u.tg_id for u in users]
+
+
 async def _run() -> None:
     await test_read_journal_range_filters_and_orders()
     await test_read_journal_range_empty()
+    await test_all_onboarded_users_excludes_users_without_habits()
     print("ok")
 
 

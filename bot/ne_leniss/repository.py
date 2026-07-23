@@ -358,6 +358,15 @@ class Repository:
                     due.append(u)
             return due
 
+    async def all_onboarded_users(self) -> list[User]:
+        """Users who finished onboarding (have habits set). Used by the
+        one-off ops resend of the morning message."""
+        async with self._sm() as s:
+            rows = (
+                await s.execute(select(User).where(User.habits_json.isnot(None)))
+            ).scalars().all()
+            return list(rows)
+
     async def was_morning_sent(self, user_id: int, date_iso: str) -> bool:
         async with self._sm() as s:
             row = await s.get(MorningSent, (user_id, date_iso))
