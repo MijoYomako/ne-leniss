@@ -367,6 +367,15 @@ class Repository:
             ).scalars().all()
             return list(rows)
 
+    async def all_not_onboarded_users(self) -> list[User]:
+        """Users who pressed /start but never set habits. Target of the
+        one-off onboarding-nudge broadcast."""
+        async with self._sm() as s:
+            rows = (
+                await s.execute(select(User).where(User.habits_json.is_(None)))
+            ).scalars().all()
+            return list(rows)
+
     async def was_morning_sent(self, user_id: int, date_iso: str) -> bool:
         async with self._sm() as s:
             row = await s.get(MorningSent, (user_id, date_iso))

@@ -81,6 +81,17 @@ async def on_continue(query: CallbackQuery, state: FSMContext) -> None:
     await query.answer()
 
 
+@router.callback_query(F.data == "onb:resume")
+async def on_resume_onboarding(query: CallbackQuery, state: FSMContext) -> None:
+    """Jump a stalled user straight to the habits step (from the one-off
+    onboarding-nudge broadcast). State-agnostic: works whether they were left
+    at intro, awaiting_habits, or cleared."""
+    await state.set_state(OnboardingStates.awaiting_habits)
+    if query.message is not None:
+        await query.message.answer(ASK_HABITS, parse_mode="HTML")
+    await query.answer()
+
+
 @router.message(OnboardingStates.awaiting_habits)
 async def on_habits_input(
     message: Message,
